@@ -113,14 +113,13 @@ namespace Sodium.Tools
 
                 GUILayout.Label(e.timestamp.ToString("HH:mm:ss"), GUILayout.Width(60));
 
-                var newline = e.raw.IndexOf('\n');
-                var firstLine = newline >= 0 ? e.raw.Substring(0, newline) : e.raw;
-                float openW = e.isJson ? 56f : 0f;
-                float labelW = EditorGUIUtility.currentViewWidth - 68f - openW;
-                GUILayout.Label(firstLine, RichLabel, GUILayout.Width(Mathf.Max(0, labelW)));
-
                 if (e.isJson && GUILayout.Button("Open", GUILayout.Width(50)))
                     JsonExpandWindow.Open(e.json);
+
+                var newline = e.raw.IndexOf('\n');
+                var firstLine = newline >= 0 ? e.raw.Substring(0, newline) : e.raw;
+                float labelW = EditorGUIUtility.currentViewWidth - 68f - (e.isJson ? 56f : 0f);
+                GUILayout.Label(firstLine, RichLabel, GUILayout.Width(Mathf.Max(0, labelW)));
 
                 EditorGUILayout.EndHorizontal();
             }

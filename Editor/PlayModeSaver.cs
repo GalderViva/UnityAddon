@@ -93,10 +93,13 @@ namespace Sodium.Tools
                     continue;
                 }
 
+                bool isPrefabInstance = PrefabUtility.IsPartOfPrefabInstance(go);
+
                 foreach (var sc in entry.components)
                 {
                     var type = Type.GetType(sc.typeName);
                     if (type == null) continue;
+                    if (isPrefabInstance && (type == typeof(Transform) || type == typeof(RectTransform))) continue;
 
                     var c = go.GetComponent(type);
                     if (c == null) c = Undo.AddComponent(go, type);
