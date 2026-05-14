@@ -13,11 +13,9 @@ namespace Sodium.Tools
         struct LogEntry
         {
             public string raw;      // original con <color> tags
-            public string display;  // tags stripped, para detección y truncado
-            public string json;
+            public string display;  // tags stripped
             public LogType type;
             public DateTime timestamp;
-            public bool isJson;
         }
 
         [MenuItem("Tools/Sodium Tools/JSON Log Viewer")]
@@ -60,18 +58,12 @@ namespace Sodium.Tools
             if (_entries.Count >= MaxEntries)
                 _entries.RemoveAt(0);
 
-            var stripped = StripTags(message);
-            var jsonStart = stripped.IndexOfAny(new[] { '{', '[' });
-            var isJson = jsonStart >= 0;
-
             _entries.Add(new LogEntry
             {
                 raw = message,
-                display = stripped,
-                json = isJson ? stripped.Substring(jsonStart) : null,
+                display = StripTags(message),
                 type = type,
-                timestamp = DateTime.Now,
-                isJson = isJson
+                timestamp = DateTime.Now
             });
 
             Repaint();
@@ -85,9 +77,9 @@ namespace Sodium.Tools
                 GUILayout.Space(4);
                 _filter = EditorGUILayout.TextField(_filter, EditorStyles.toolbarSearchField, GUILayout.ExpandWidth(true));
                 GUILayout.Space(4);
-                _showLog     = GUILayout.Toggle(_showLog,     LogCount(LogType.Log)     + " Log",     EditorStyles.toolbarButton);
-                _showWarning = GUILayout.Toggle(_showWarning, LogCount(LogType.Warning)  + " Warn",    EditorStyles.toolbarButton);
-                _showError   = GUILayout.Toggle(_showError,   LogCount(LogType.Error)    + " Error",   EditorStyles.toolbarButton);
+                _showLog     = GUILayout.Toggle(_showLog,     LogCount(LogType.Log)    + " Log",   EditorStyles.toolbarButton);
+                _showWarning = GUILayout.Toggle(_showWarning, LogCount(LogType.Warning) + " Warn",  EditorStyles.toolbarButton);
+                _showError   = GUILayout.Toggle(_showError,   LogCount(LogType.Error)   + " Error", EditorStyles.toolbarButton);
                 if (GUILayout.Button("Clear", EditorStyles.toolbarButton, GUILayout.Width(50)))
                     _entries.Clear();
             }
@@ -107,18 +99,16 @@ namespace Sodium.Tools
                 var rowColor = RowColor(e.type);
                 var rect = EditorGUILayout.BeginHorizontal();
                 if (rowColor.a > 0)
-                {
                     EditorGUI.DrawRect(rect, rowColor);
-                }
 
                 GUILayout.Label(e.timestamp.ToString("HH:mm:ss"), GUILayout.Width(60));
 
-                if (e.isJson && GUILayout.Button("Open", GUILayout.Width(50)))
-                    JsonExpandWindow.Open(e.json);
+                if (GUILayout.Button("Open", GUILayout.Width(50)))
+                    JsonExpandWindow.Open(e.display);
 
                 var newline = e.raw.IndexOf('\n');
                 var firstLine = newline >= 0 ? e.raw.Substring(0, newline) : e.raw;
-                float labelW = EditorGUIUtility.currentViewWidth - 68f - (e.isJson ? 56f : 0f);
+                float labelW = EditorGUIUtility.currentViewWidth - 68f - 56f;
                 GUILayout.Label(firstLine, RichLabel, GUILayout.Width(Mathf.Max(0, labelW)));
 
                 EditorGUILayout.EndHorizontal();
@@ -144,10 +134,8 @@ namespace Sodium.Tools
 
         static Color RowColor(LogType type) => type switch
         {
-            LogType.Error or LogType.Exception or LogType.Assert
-                => new Color(1f, 0.3f, 0.3f, 0.15f),
-            LogType.Warning
-                => new Color(1f, 0.85f, 0.3f, 0.12f),
+            LogType.Error or LogType.Exception or LogType.Assert => new Color(1f, 0.3f, 0.3f, 0.15f),
+            LogType.Warning => new Color(1f, 0.85f, 0.3f, 0.12f),
             _ => Color.clear
         };
 

@@ -38,6 +38,10 @@ namespace Sodium.Tools
 
         static string PrettyPrint(string json)
         {
+            var trimmed = json.TrimStart();
+            if (!trimmed.StartsWith("{") && !trimmed.StartsWith("["))
+                return json;
+
             try
             {
                 int indent = 0;
