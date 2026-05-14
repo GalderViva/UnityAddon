@@ -10,19 +10,32 @@ namespace Sodium.Tools
         string _pretty;
         Vector2 _scroll;
 
-        public static void Open(string json)
+        static JsonExpandWindow _instance;
+
+        public static void Open(string content)
         {
-            var win = CreateInstance<JsonExpandWindow>();
-            var title = json.Length > 40 ? json.Substring(0, 40) + "…" : json;
-            win.titleContent = new GUIContent(title);
-            win._raw = json;
-            win._pretty = PrettyPrint(json);
-            win.minSize = new Vector2(400, 300);
-            win.ShowUtility();
+            if (_instance == null)
+            {
+                _instance = CreateInstance<JsonExpandWindow>();
+                _instance.minSize = new Vector2(400, 300);
+            }
+            _instance._raw = content;
+            _instance._pretty = Format(content);
+            _instance.titleContent = new GUIContent(content.Length > 40 ? content.Substring(0, 40) + "…" : content);
+            _instance.ShowUtility();
+            _instance.Repaint();
         }
+
+        void OnDestroy() => _instance = null;
 
         void OnGUI()
         {
+            if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Escape)
+            {
+                Close();
+                return;
+            }
+
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
             {
                 GUILayout.Label($"{_raw?.Length ?? 0} chars", GUILayout.Width(80));
@@ -36,12 +49,43 @@ namespace Sodium.Tools
             EditorGUILayout.EndScrollView();
         }
 
+        // Finds first real JSON start ({" or [{ or [" etc), returns -1 if none
+        static int FindJsonStart(string s)
+        {
+            for (int i = 0; i < s.Length; i++)
+            {
+                char c = s[i];
+                if (c != '{' && c != '[') continue;
+
+                int next = i + 1;
+                while (next < s.Length && (s[next] == ' ' || s[next] == '\t' || s[next] == '\n')) next++;
+                if (next >= s.Length) continue;
+
+                char after = s[next];
+                bool valid = c == '{'
+                    ? after == '"' || after == '}'
+                    : after == '{' || after == '[' || after == ']' || after == '"'
+                      || char.IsDigit(after) || after == 't' || after == 'f' || after == 'n' || after == '-';
+
+                if (valid) return i;
+            }
+            return -1;
+        }
+
+        static string Format(string content)
+        {
+            int jsonStart = FindJsonStart(content);
+            if (jsonStart < 0) return content;  // no JSON — mostrar tal cual
+
+            string prefix = content.Substring(0, jsonStart).TrimEnd();
+            string json = content.Substring(jsonStart);
+            string pretty = PrettyPrint(json);
+
+            return string.IsNullOrEmpty(prefix) ? pretty : prefix + "\n\n" + pretty;
+        }
+
         static string PrettyPrint(string json)
         {
-            var trimmed = json.TrimStart();
-            if (!trimmed.StartsWith("{") && !trimmed.StartsWith("["))
-                return json;
-
             try
             {
                 int indent = 0;

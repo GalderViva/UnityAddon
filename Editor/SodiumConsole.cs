@@ -6,20 +6,20 @@ using UnityEngine;
 
 namespace Sodium.Tools
 {
-    public class JsonLogWindow : EditorWindow
+    public class SodiumConsole : EditorWindow
     {
         const int MaxEntries = 500;
 
         struct LogEntry
         {
-            public string raw;      // original con <color> tags
-            public string display;  // tags stripped
+            public string raw;
+            public string display;
             public LogType type;
             public DateTime timestamp;
         }
 
-        [MenuItem("Tools/Sodium Tools/JSON Log Viewer")]
-        static void Open() => GetWindow<JsonLogWindow>("JSON Log Viewer");
+        [MenuItem("Tools/Sodium Tools/Sodium Console")]
+        static void Open() => GetWindow<SodiumConsole>();
 
         readonly List<LogEntry> _entries = new();
         Vector2 _scroll;
@@ -48,6 +48,8 @@ namespace Sodium.Tools
 
         void OnEnable()
         {
+            var icon = EditorGUIUtility.IconContent("d_UnityEditor.ConsoleWindow").image;
+            titleContent = new GUIContent("Sodium Console", icon);
             Application.logMessageReceived += OnLog;
             _showLog = _showWarning = _showError = true;
         }
@@ -73,7 +75,7 @@ namespace Sodium.Tools
         {
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
             {
-                GUILayout.Label($"Logs: {_entries.Count}/{MaxEntries}", GUILayout.Width(120));
+                GUILayout.Label($"Logs: {_entries.Count}/{MaxEntries}", GUILayout.Width(130));
                 GUILayout.Space(4);
                 _filter = EditorGUILayout.TextField(_filter, EditorStyles.toolbarSearchField, GUILayout.ExpandWidth(true));
                 GUILayout.Space(4);
