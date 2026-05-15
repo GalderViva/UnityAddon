@@ -96,8 +96,8 @@ namespace Sodium.Tools
                 _pasteIcon.image  = EditorGUIUtility.IconContent("Clipboard").image;
                 _saveIcon.image   = EditorGUIUtility.IconContent("d_SaveAs").image
                                  ?? EditorGUIUtility.IconContent("Refresh").image;
-                _locateIcon.image = EditorGUIUtility.IconContent("d_HierarchyWindow.SearchByObject").image
-                                 ?? EditorGUIUtility.IconContent("SceneAsset Icon").image;
+                _locateIcon.image = EditorGUIUtility.IconContent("d_Selectable Icon").image
+                                 ?? EditorGUIUtility.IconContent("GameObject Icon").image;
             }
 
             EditorGUILayout.Space(2f);
