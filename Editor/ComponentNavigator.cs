@@ -43,7 +43,7 @@ namespace Sodium.Tools
             foreach (var c in go.GetComponents<Component>())
                 if (c != null)
                     InternalEditorUtility.SetIsInspectorExpanded(c, expanded);
-            ActiveEditorTracker.sharedTracker.ForceRebuild();
+            EditorApplication.delayCall += () => ActiveEditorTracker.sharedTracker.ForceRebuild();
         }
 
         static void RebuildTabs(GameObject go)
