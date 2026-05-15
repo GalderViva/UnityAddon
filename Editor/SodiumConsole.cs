@@ -173,18 +173,18 @@ namespace Sodium.Tools
 
                 GUILayout.Label(e.timestamp.ToString("HH:mm:ss"), GUILayout.Width(60));
 
-                if (_collapse && count > 1)
+                // badge slot — always 36px wide when collapse is on so columns stay aligned
+                if (_collapse)
                 {
                     const float badgeW = 36f;
                     var badgeRect = GUILayoutUtility.GetRect(badgeW, 18f, GUILayout.Width(badgeW));
-                    badgeRect.y      += 1f;
-                    badgeRect.height -= 2f;
-                    EditorGUI.DrawRect(badgeRect, new Color(0.18f, 0.48f, 0.9f, 1f));
-                    GUI.Label(badgeRect, count > 999 ? "999+" : count.ToString(), _badgeStyle);
-                }
-                else if (_collapse)
-                {
-                    GUILayout.Space(36f);
+                    if (count > 1)
+                    {
+                        badgeRect.y      += 1f;
+                        badgeRect.height -= 2f;
+                        EditorGUI.DrawRect(badgeRect, new Color(0.18f, 0.48f, 0.9f, 1f));
+                        GUI.Label(badgeRect, count > 999 ? "999+" : count.ToString(), _badgeStyle);
+                    }
                 }
 
                 if (GUILayout.Button("Open", GUILayout.Width(50)))
@@ -192,8 +192,7 @@ namespace Sodium.Tools
 
                 var newline   = e.raw.IndexOf('\n');
                 var firstLine = newline >= 0 ? e.raw.Substring(0, newline) : e.raw;
-                float labelW  = EditorGUIUtility.currentViewWidth - 68f - 56f - 40f;
-                GUILayout.Label(firstLine, RichLabel, GUILayout.Width(Mathf.Max(0, labelW)));
+                GUILayout.Label(firstLine, RichLabel, GUILayout.ExpandWidth(true));
 
                 EditorGUILayout.EndHorizontal();
             }
