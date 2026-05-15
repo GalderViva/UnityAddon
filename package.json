@@ -2,7 +2,19 @@
   "name": "com.sodium.tools",
   "version": "1.0.0",
   "displayName": "Sodium Tools",
-  "description": "Play mode prefab saver, component copy/paste, and JSON log viewer for Unity 6.",
+  "description": "Unity 6 editor utilities: component navigator with hierarchy tabs and quick-view, play mode saver, component clipboard, and JSON log console.",
   "unity": "6000.0",
-  "type": "tool"
+  "type": "tool",
+  "author": {
+    "name": "Redvel Games",
+    "email": "buildserver@redvelgames.com"
+  },
+  "keywords": [
+    "editor",
+    "tools",
+    "inspector",
+    "prefab",
+    "clipboard",
+    "console"
+  ]
 }
