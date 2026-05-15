@@ -6,8 +6,26 @@ using UnityEngine;
 
 namespace Sodium.Tools
 {
+    [InitializeOnLoad]
+    static class SodiumConsoleRestorer
+    {
+        static SodiumConsoleRestorer()
+        {
+            if (EditorPrefs.GetBool(SodiumConsole.PrefKey, false))
+                EditorApplication.update += Reopen;
+        }
+
+        static void Reopen()
+        {
+            EditorApplication.update -= Reopen;
+            EditorWindow.GetWindow<SodiumConsole>();
+        }
+    }
+
     public class SodiumConsole : EditorWindow
     {
+        internal const string PrefKey = "Sodium.ConsoleOpen";
+
         const int MaxEntries = 500;
 
         struct LogEntry
@@ -23,11 +41,13 @@ namespace Sodium.Tools
 
         readonly List<LogEntry> _entries = new();
         Vector2 _scroll;
-        string _filter = "";
-        bool _showLog = true;
+        string _filter   = "";
+        bool _showLog    = true;
         bool _showWarning = true;
-        bool _showError = true;
+        bool _showError  = true;
+        bool _collapse   = true;
         GUIStyle _richLabel;
+        GUIStyle _badgeStyle;
 
         GUIStyle RichLabel
         {
@@ -52,8 +72,12 @@ namespace Sodium.Tools
             titleContent = new GUIContent("Sodium Console", icon);
             Application.logMessageReceived += OnLog;
             _showLog = _showWarning = _showError = true;
+            EditorPrefs.SetBool(PrefKey, true);
         }
+
         void OnDisable() => Application.logMessageReceived -= OnLog;
+
+        void OnDestroy() => EditorPrefs.SetBool(PrefKey, false);
 
         void OnLog(string message, string stackTrace, LogType type)
         {
@@ -77,41 +101,93 @@ namespace Sodium.Tools
             {
                 GUILayout.Label($"Logs: {_entries.Count}/{MaxEntries}", GUILayout.Width(130));
                 GUILayout.Space(4);
-                _filter = EditorGUILayout.TextField(_filter, EditorStyles.toolbarSearchField, GUILayout.ExpandWidth(true));
+                _filter   = EditorGUILayout.TextField(_filter, EditorStyles.toolbarSearchField, GUILayout.ExpandWidth(true));
                 GUILayout.Space(4);
-                _showLog     = GUILayout.Toggle(_showLog,     LogCount(LogType.Log)    + " Log",   EditorStyles.toolbarButton);
+                _collapse = GUILayout.Toggle(_collapse, "Collapse", EditorStyles.toolbarButton);
+
+                GUI.contentColor = new Color(0.7f, 0.9f, 1f);
+                _showLog     = GUILayout.Toggle(_showLog,     LogCount(LogType.Log)     + " Log",   EditorStyles.toolbarButton);
+                GUI.contentColor = new Color(1f, 0.85f, 0.25f);
                 _showWarning = GUILayout.Toggle(_showWarning, LogCount(LogType.Warning) + " Warn",  EditorStyles.toolbarButton);
+                GUI.contentColor = new Color(1f, 0.4f, 0.4f);
                 _showError   = GUILayout.Toggle(_showError,   LogCount(LogType.Error)   + " Error", EditorStyles.toolbarButton);
+                GUI.contentColor = Color.white;
                 if (GUILayout.Button("Clear", EditorStyles.toolbarButton, GUILayout.Width(50)))
                     _entries.Clear();
             }
 
             var hasFilter = !string.IsNullOrEmpty(_filter);
 
+            if (_badgeStyle == null)
+                _badgeStyle = new GUIStyle(EditorStyles.miniLabel)
+                {
+                    alignment = TextAnchor.MiddleCenter,
+                    normal    = { textColor = Color.white },
+                    fontSize  = 9
+                };
+
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
+
+            // Build collapsed view: last entry + count per unique message
+            var seen   = new Dictionary<string, int>();
+            var toShow = new List<(LogEntry entry, int count)>();
 
             for (int i = _entries.Count - 1; i >= 0; i--)
             {
                 var e = _entries[i];
-
                 if (!IsTypeVisible(e.type)) continue;
-                if (hasFilter && e.display.IndexOf(_filter, StringComparison.OrdinalIgnoreCase) < 0)
-                    continue;
+                if (hasFilter && e.display.IndexOf(_filter, StringComparison.OrdinalIgnoreCase) < 0) continue;
 
+                if (_collapse)
+                {
+                    if (!seen.ContainsKey(e.display))
+                    {
+                        seen[e.display] = 1;
+                        toShow.Add((e, 1));
+                    }
+                    else
+                    {
+                        seen[e.display]++;
+                        // update count in existing entry
+                        for (int j = 0; j < toShow.Count; j++)
+                        {
+                            if (toShow[j].entry.display == e.display)
+                            {
+                                toShow[j] = (toShow[j].entry, seen[e.display]);
+                                break;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    toShow.Add((e, 1));
+                }
+            }
+
+            foreach (var (e, count) in toShow)
+            {
                 var rowColor = RowColor(e.type);
-                var rect = EditorGUILayout.BeginHorizontal();
-                if (rowColor.a > 0)
-                    EditorGUI.DrawRect(rect, rowColor);
+                var rect     = EditorGUILayout.BeginHorizontal();
+                if (rowColor.a > 0) EditorGUI.DrawRect(rect, rowColor);
 
                 GUILayout.Label(e.timestamp.ToString("HH:mm:ss"), GUILayout.Width(60));
 
                 if (GUILayout.Button("Open", GUILayout.Width(50)))
                     JsonExpandWindow.Open(e.display);
 
-                var newline = e.raw.IndexOf('\n');
+                var newline   = e.raw.IndexOf('\n');
                 var firstLine = newline >= 0 ? e.raw.Substring(0, newline) : e.raw;
-                float labelW = EditorGUIUtility.currentViewWidth - 68f - 56f;
+                float badgeW  = _collapse && count > 1 ? 30f : 0f;
+                float labelW  = EditorGUIUtility.currentViewWidth - 68f - 56f - badgeW;
                 GUILayout.Label(firstLine, RichLabel, GUILayout.Width(Mathf.Max(0, labelW)));
+
+                if (_collapse && count > 1)
+                {
+                    var badgeRect = GUILayoutUtility.GetRect(badgeW, 18f, GUILayout.Width(badgeW));
+                    EditorGUI.DrawRect(badgeRect, new Color(0.2f, 0.2f, 0.2f, 0.85f));
+                    GUI.Label(badgeRect, count > 999 ? "999+" : count.ToString(), _badgeStyle);
+                }
 
                 EditorGUILayout.EndHorizontal();
             }

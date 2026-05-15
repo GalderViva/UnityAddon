@@ -20,8 +20,9 @@ namespace Sodium.Tools
         static Vector2      _tabScroll;
         static string       _tabSearch = string.Empty;
 
-        static readonly GUIContent _copyIcon   = new GUIContent(string.Empty, "Copy All Components");
-        static readonly GUIContent _pasteIcon  = new GUIContent(string.Empty, "Paste All Components");
+        static readonly GUIContent _copyIcon   = new GUIContent(" Copy",  "Copy All Components");
+        static readonly GUIContent _pasteIcon  = new GUIContent(" Paste", "Paste All Components");
+        static readonly GUIContent _saveIcon   = new GUIContent(" Save",  "Save in Play Mode");
         static readonly GUIContent _locateIcon = new GUIContent(string.Empty, "Select in Hierarchy");
 
         static ComponentNavigator()
@@ -77,7 +78,7 @@ namespace Sodium.Tools
             int id = go.GetInstanceID();
             if (id != _lastInstanceId || go.transform.childCount != _lastChildCount)
             {
-                if (_lastInstanceId != 0 && _tabObjects is { Length: > 0 } && _tabObjects[0] != null)
+                if (_lastInstanceId != 0 && _tabObjects != null && _tabObjects.Length > 0 && _tabObjects[0] != null)
                     SetAllComponentsExpanded(_tabObjects[0], true);
 
                 _lastInstanceId    = id;
@@ -89,10 +90,12 @@ namespace Sodium.Tools
                 RebuildTabs(go);
             }
 
-            if (_copyIcon.image == null)
+            if (_locateIcon.image == null)
             {
                 _copyIcon.image   = EditorGUIUtility.IconContent("TreeEditor.Duplicate").image;
                 _pasteIcon.image  = EditorGUIUtility.IconContent("Clipboard").image;
+                _saveIcon.image   = EditorGUIUtility.IconContent("d_SaveAs").image
+                                 ?? EditorGUIUtility.IconContent("Refresh").image;
                 _locateIcon.image = EditorGUIUtility.IconContent("d_HierarchyWindow.SearchByObject").image
                                  ?? EditorGUIUtility.IconContent("SceneAsset Icon").image;
             }
@@ -110,19 +113,39 @@ namespace Sodium.Tools
 
         static void DrawCopyPasteToolbar(GameObject rootGo)
         {
-            using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
+            const float btnH = 26f;
+
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Space(2f);
+
+            if (GUILayout.Button(_copyIcon, GUILayout.Height(btnH)))
+                ComponentClipboard.Copy(rootGo);
+
+            using (new EditorGUI.DisabledScope(!ComponentClipboard.HasData))
             {
-                if (GUILayout.Button(_copyIcon, EditorStyles.toolbarButton, GUILayout.Width(26f)))
-                    ComponentClipboard.Copy(rootGo);
-
-                using (new EditorGUI.DisabledScope(!ComponentClipboard.HasData))
-                {
-                    if (GUILayout.Button(_pasteIcon, EditorStyles.toolbarButton, GUILayout.Width(26f)))
-                        ComponentClipboard.Paste(rootGo);
-                }
-
-                GUILayout.FlexibleSpace();
+                if (GUILayout.Button(_pasteIcon, GUILayout.Height(btnH)))
+                    ComponentClipboard.Paste(rootGo);
             }
+
+            GUILayout.Space(6f);
+
+            using (new EditorGUI.DisabledScope(!EditorApplication.isPlaying))
+            {
+                if (GUILayout.Button(_saveIcon, GUILayout.Height(btnH)))
+                {
+                    bool isPrefab = PrefabUtility.GetPrefabInstanceStatus(rootGo) == PrefabInstanceStatus.Connected;
+                    string msg = isPrefab
+                        ? $"Aplicar todos los overrides de '{rootGo.name}' al prefab?\n\nEsta acción no se puede deshacer."
+                        : $"Guardar '{rootGo.name}' para restaurar al salir del Play Mode?";
+
+                    if (EditorUtility.DisplayDialog("Salvar GameObject", msg, "Salvar", "Cancelar"))
+                        PlayModeSaver.Save(rootGo);
+                }
+            }
+
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+            GUILayout.Space(2f);
         }
 
         // ── Hierarchy list ───────────────────────────────────────────────────
@@ -135,7 +158,7 @@ namespace Sodium.Tools
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
             {
                 _tabSearch = EditorGUILayout.TextField(_tabSearch, EditorStyles.toolbarSearchField);
-                if (GUILayout.Button(GUIContent.none, EditorStyles.toolbarSearchCancelButton))
+                if (GUILayout.Button("✕", EditorStyles.toolbarButton, GUILayout.Width(20f)))
                     _tabSearch = string.Empty;
             }
 
@@ -177,26 +200,32 @@ namespace Sodium.Tools
                 else if (visIdx % 2 == 1)
                     EditorGUI.DrawRect(row, altColor);
 
-                // Depth dots
-                for (int d = 0; d < depth; d++)
-                    EditorGUI.DrawRect(
-                        new Rect(row.x + d * 14f + 9f, row.y + (rowH - 3f) * 0.5f, 3f, 3f),
-                        dotColor);
-
-                // Label
-                float indent = depth > 0 ? depth * 14f + 16f : 4f;
-                var   lStyle = new GUIStyle(EditorStyles.label) { alignment = TextAnchor.MiddleLeft };
-                if (isSelected) lStyle.normal.textColor = Color.white;
-                GUI.Label(new Rect(row.x + indent, row.y, row.width - indent - 22f, row.height),
-                          _tabLabels[i], lStyle);
-
-                // Locate button
-                Rect btn = new Rect(row.xMax - 20f, row.y + 1f, 18f, rowH - 2f);
+                // Locate button — far left
+                const float locW = 20f;
+                Rect btn = new Rect(row.x, row.y + 1f, locW, rowH - 2f);
                 if (GUI.Button(btn, _locateIcon, EditorStyles.iconButton))
                 {
                     Selection.activeGameObject = _tabObjects[i];
                     EditorGUIUtility.PingObject(_tabObjects[i]);
                 }
+
+                // Depth dots (offset by locW)
+                for (int d = 0; d < depth; d++)
+                    EditorGUI.DrawRect(
+                        new Rect(row.x + locW + d * 14f + 9f, row.y + (rowH - 3f) * 0.5f, 3f, 3f),
+                        dotColor);
+
+                // Icon + Label (offset by locW)
+                float indent = locW + (depth > 0 ? depth * 14f + 16f : 4f);
+                var   goIcon = EditorGUIUtility.ObjectContent(_tabObjects[i], typeof(GameObject)).image;
+                if (goIcon != null)
+                    GUI.DrawTexture(new Rect(row.x + indent, row.y + 2f, 16f, 16f),
+                                   goIcon, ScaleMode.ScaleToFit);
+                float textX = row.x + indent + (goIcon != null ? 18f : 0f);
+                var   lStyle = new GUIStyle(EditorStyles.label) { alignment = TextAnchor.MiddleLeft };
+                if (isSelected) lStyle.normal.textColor = Color.white;
+                GUI.Label(new Rect(textX, row.y, row.xMax - textX, row.height),
+                          _tabLabels[i], lStyle);
 
                 // Row click (select)
                 if (Event.current.type == EventType.MouseDown
