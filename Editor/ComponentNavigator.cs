@@ -19,6 +19,9 @@ namespace Sodium.Tools
         static Editor       _quickViewEditor;
         static Vector2      _tabScroll;
         static string       _tabSearch = string.Empty;
+        static bool         _expanded  = true;
+
+        const string PrefExpanded = "Sodium.NavExpanded";
 
         static readonly GUIContent _copyIcon   = new GUIContent(" Copy",  "Copy All Components");
         static readonly GUIContent _pasteIcon  = new GUIContent(" Paste", "Paste All Components");
@@ -27,6 +30,7 @@ namespace Sodium.Tools
 
         static ComponentNavigator()
         {
+            _expanded = EditorPrefs.GetBool(PrefExpanded, true);
             Editor.finishedDefaultHeaderGUI += OnHeaderGUI;
             AssemblyReloadEvents.beforeAssemblyReload += Cleanup;
         }
@@ -101,6 +105,26 @@ namespace Sodium.Tools
             }
 
             EditorGUILayout.Space(2f);
+
+            // collapse/expand header
+            EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
+            bool newExpanded = GUILayout.Toggle(_expanded,
+                _expanded ? "▼ Component Navigator" : "► Component Navigator",
+                EditorStyles.toolbarButton, GUILayout.ExpandWidth(true));
+            EditorGUILayout.EndHorizontal();
+
+            if (newExpanded != _expanded)
+            {
+                _expanded = newExpanded;
+                EditorPrefs.SetBool(PrefExpanded, _expanded);
+            }
+
+            if (!_expanded)
+            {
+                EditorGUILayout.Space(2f);
+                return;
+            }
+
             DrawCopyPasteToolbar(go);
             DrawHierarchyList(go);
             EditorGUILayout.LabelField(string.Empty, GUI.skin.horizontalSlider);
