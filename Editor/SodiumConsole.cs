@@ -173,21 +173,27 @@ namespace Sodium.Tools
 
                 GUILayout.Label(e.timestamp.ToString("HH:mm:ss"), GUILayout.Width(60));
 
+                if (_collapse && count > 1)
+                {
+                    const float badgeW = 36f;
+                    var badgeRect = GUILayoutUtility.GetRect(badgeW, 18f, GUILayout.Width(badgeW));
+                    badgeRect.y      += 1f;
+                    badgeRect.height -= 2f;
+                    EditorGUI.DrawRect(badgeRect, new Color(0.18f, 0.48f, 0.9f, 1f));
+                    GUI.Label(badgeRect, count > 999 ? "999+" : count.ToString(), _badgeStyle);
+                }
+                else if (_collapse)
+                {
+                    GUILayout.Space(36f);
+                }
+
                 if (GUILayout.Button("Open", GUILayout.Width(50)))
                     JsonExpandWindow.Open(e.display);
 
                 var newline   = e.raw.IndexOf('\n');
                 var firstLine = newline >= 0 ? e.raw.Substring(0, newline) : e.raw;
-                float badgeW  = _collapse && count > 1 ? 30f : 0f;
-                float labelW  = EditorGUIUtility.currentViewWidth - 68f - 56f - badgeW;
+                float labelW  = EditorGUIUtility.currentViewWidth - 68f - 56f - 40f;
                 GUILayout.Label(firstLine, RichLabel, GUILayout.Width(Mathf.Max(0, labelW)));
-
-                if (_collapse && count > 1)
-                {
-                    var badgeRect = GUILayoutUtility.GetRect(badgeW, 18f, GUILayout.Width(badgeW));
-                    EditorGUI.DrawRect(badgeRect, new Color(0.2f, 0.2f, 0.2f, 0.85f));
-                    GUI.Label(badgeRect, count > 999 ? "999+" : count.ToString(), _badgeStyle);
-                }
 
                 EditorGUILayout.EndHorizontal();
             }
