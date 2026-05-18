@@ -1,6 +1,6 @@
 {
   "name": "com.sodium.tools",
-  "version": "1.0.0",
+  "version": "1.7.8",
   "displayName": "Sodium Tools",
   "description": "Unity 6 editor utilities: component navigator with hierarchy tabs and quick-view, play mode saver, component clipboard, and JSON log console.",
   "unity": "6000.0",
