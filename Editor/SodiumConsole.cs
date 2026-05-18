@@ -173,8 +173,10 @@ namespace Sodium.Tools
 
                 GUILayout.Label(e.timestamp.ToString("HH:mm:ss"), GUILayout.Width(60));
 
+                GUI.contentColor = TypeColor(e.type);
                 if (GUILayout.Button("Open", GUILayout.Width(50)))
                     JsonExpandWindow.Open(e.display);
+                GUI.contentColor = Color.white;
 
                 if (_collapse && count > 1)
                 {
@@ -210,6 +212,13 @@ namespace Sodium.Tools
                     ? e.type == LogType.Warning
                     : e.type == LogType.Error || e.type == LogType.Exception || e.type == LogType.Assert
         ).Count;
+
+        static Color TypeColor(LogType type) => type switch
+        {
+            LogType.Error or LogType.Exception or LogType.Assert => new Color(1f, 0.4f, 0.4f),
+            LogType.Warning => new Color(1f, 0.85f, 0.25f),
+            _ => new Color(0.7f, 0.9f, 1f)
+        };
 
         static Color RowColor(LogType type) => type switch
         {
