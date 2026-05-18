@@ -9,9 +9,11 @@ namespace Sodium.Tools
     {
         string _raw;
         string _pretty;
+        string _prettyColored;
         string _stackTrace;
         Vector2 _scroll;
         GUIStyle _linkStyle;
+        GUIStyle _richTextStyle;
 
         static JsonExpandWindow _instance;
 
@@ -30,6 +32,20 @@ namespace Sodium.Tools
             }
         }
 
+        GUIStyle RichTextStyle
+        {
+            get
+            {
+                if (_richTextStyle == null)
+                    _richTextStyle = new GUIStyle(EditorStyles.textArea)
+                    {
+                        richText = true,
+                        wordWrap = false,
+                    };
+                return _richTextStyle;
+            }
+        }
+
         public static void Open(string content, string stackTrace = null)
         {
             if (_instance == null)
@@ -37,10 +53,12 @@ namespace Sodium.Tools
                 _instance = CreateInstance<JsonExpandWindow>();
                 _instance.minSize = new Vector2(400, 300);
             }
-            _instance._raw        = content;
-            _instance._pretty     = Format(content);
-            _instance._stackTrace = stackTrace;
-            _instance._linkStyle  = null;
+            _instance._raw           = content;
+            _instance._pretty        = Format(content);
+            _instance._prettyColored = FindJsonStart(content) >= 0 ? Colorize(_instance._pretty) : null;
+            _instance._stackTrace    = stackTrace;
+            _instance._linkStyle     = null;
+            _instance._richTextStyle = null;
             _instance.titleContent = new GUIContent(content.Length > 40 ? content.Substring(0, 40) + "…" : content);
             _instance.ShowUtility();
             _instance.Repaint();
@@ -66,17 +84,26 @@ namespace Sodium.Tools
 
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
 
-            var text = _pretty ?? _raw ?? string.Empty;
-            if (string.IsNullOrEmpty(_stackTrace))
+            var hasTrace  = !string.IsNullOrEmpty(_stackTrace);
+            var plainText = _pretty ?? _raw ?? string.Empty;
+
+            if (_prettyColored != null)
             {
-                EditorGUILayout.TextArea(text, GUILayout.ExpandHeight(true));
+                float h = Mathf.Max(60f, EditorStyles.textArea.CalcHeight(new GUIContent(plainText), position.width - 24f));
+                GUILayout.Label(_prettyColored, RichTextStyle, GUILayout.Height(h));
+            }
+            else if (hasTrace)
+            {
+                float h = Mathf.Max(60f, EditorStyles.textArea.CalcHeight(new GUIContent(plainText), position.width - 24f));
+                EditorGUILayout.TextArea(plainText, GUILayout.Height(h));
             }
             else
             {
-                var textContent = new GUIContent(text);
-                float textH = Mathf.Max(60f, EditorStyles.textArea.CalcHeight(textContent, position.width - 24f));
-                EditorGUILayout.TextArea(text, GUILayout.Height(textH));
+                EditorGUILayout.TextArea(plainText, GUILayout.ExpandHeight(true));
+            }
 
+            if (hasTrace)
+            {
                 GUILayout.Space(6);
                 EditorGUILayout.LabelField("Stack Trace", EditorStyles.boldLabel);
                 GUILayout.Space(2);
@@ -117,6 +144,24 @@ namespace Sodium.Tools
                 if (asset != null) { AssetDatabase.OpenAsset(asset, lineNum); return; }
             }
             UnityEditorInternal.InternalEditorUtility.OpenFileAtLineExternal(path, lineNum, 0);
+        }
+
+        // VS2019 dark theme: keys=light blue, strings=orange, numbers=green, keywords=blue
+        static readonly Regex ColorizeRx = new Regex(
+            @"(""(?:[^""\\]|\\.)*"")(\s*:)|(""(?:[^""\\]|\\.)*"")|(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)|(\b(?:true|false|null)\b)",
+            RegexOptions.Compiled);
+
+        static string Colorize(string prettyJson)
+        {
+            prettyJson = prettyJson.Replace("<", "&lt;").Replace(">", "&gt;");
+            return ColorizeRx.Replace(prettyJson, m =>
+            {
+                if (m.Groups[2].Success) return $"<color=#9CDCFE>{m.Groups[1].Value}</color>{m.Groups[2].Value}";
+                if (m.Groups[3].Success) return $"<color=#CE9178>{m.Groups[3].Value}</color>";
+                if (m.Groups[4].Success) return $"<color=#B5CEA8>{m.Groups[4].Value}</color>";
+                if (m.Groups[5].Success) return $"<color=#569CD6>{m.Groups[5].Value}</color>";
+                return m.Value;
+            });
         }
 
         // Finds first real JSON start ({" or [{ or [" etc), returns -1 if none
