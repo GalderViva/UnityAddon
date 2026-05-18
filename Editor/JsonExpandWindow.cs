@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 
@@ -8,19 +9,38 @@ namespace Sodium.Tools
     {
         string _raw;
         string _pretty;
+        string _stackTrace;
         Vector2 _scroll;
+        GUIStyle _linkStyle;
 
         static JsonExpandWindow _instance;
 
-        public static void Open(string content)
+        GUIStyle LinkStyle
+        {
+            get
+            {
+                if (_linkStyle == null)
+                    _linkStyle = new GUIStyle(EditorStyles.label)
+                    {
+                        normal = { textColor = new Color(0.35f, 0.65f, 1f) },
+                        hover  = { textColor = new Color(0.55f, 0.8f, 1f) },
+                        active = { textColor = new Color(0.7f, 0.9f, 1f) }
+                    };
+                return _linkStyle;
+            }
+        }
+
+        public static void Open(string content, string stackTrace = null)
         {
             if (_instance == null)
             {
                 _instance = CreateInstance<JsonExpandWindow>();
                 _instance.minSize = new Vector2(400, 300);
             }
-            _instance._raw = content;
-            _instance._pretty = Format(content);
+            _instance._raw        = content;
+            _instance._pretty     = Format(content);
+            _instance._stackTrace = stackTrace;
+            _instance._linkStyle  = null;
             _instance.titleContent = new GUIContent(content.Length > 40 ? content.Substring(0, 40) + "…" : content);
             _instance.ShowUtility();
             _instance.Repaint();
@@ -45,8 +65,58 @@ namespace Sodium.Tools
             }
 
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
-            EditorGUILayout.TextArea(_pretty ?? _raw ?? string.Empty, GUILayout.ExpandHeight(true));
+
+            var text = _pretty ?? _raw ?? string.Empty;
+            if (string.IsNullOrEmpty(_stackTrace))
+            {
+                EditorGUILayout.TextArea(text, GUILayout.ExpandHeight(true));
+            }
+            else
+            {
+                var textContent = new GUIContent(text);
+                float textH = Mathf.Max(60f, EditorStyles.textArea.CalcHeight(textContent, position.width - 24f));
+                EditorGUILayout.TextArea(text, GUILayout.Height(textH));
+
+                GUILayout.Space(6);
+                EditorGUILayout.LabelField("Stack Trace", EditorStyles.boldLabel);
+                GUILayout.Space(2);
+
+                foreach (var line in _stackTrace.Split('\n'))
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+
+                    var m = Regex.Match(line, @"\(at (.+):(\d+)\)");
+                    if (m.Success)
+                    {
+                        var path    = m.Groups[1].Value;
+                        var lineNum = int.Parse(m.Groups[2].Value);
+                        var prefix  = line.Substring(0, m.Index).TrimEnd();
+                        using (new EditorGUILayout.HorizontalScope())
+                        {
+                            if (!string.IsNullOrEmpty(prefix))
+                                GUILayout.Label(prefix, EditorStyles.miniLabel, GUILayout.ExpandWidth(false));
+                            if (GUILayout.Button($"(at {path}:{lineNum})", LinkStyle, GUILayout.ExpandWidth(false)))
+                                OpenAtLine(path, lineNum);
+                        }
+                    }
+                    else
+                    {
+                        GUILayout.Label(line, EditorStyles.miniLabel);
+                    }
+                }
+            }
+
             EditorGUILayout.EndScrollView();
+        }
+
+        static void OpenAtLine(string path, int lineNum)
+        {
+            if (path.StartsWith("Assets/") || path.StartsWith("Packages/"))
+            {
+                var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(path);
+                if (asset != null) { AssetDatabase.OpenAsset(asset, lineNum); return; }
+            }
+            UnityEditorInternal.InternalEditorUtility.OpenFileAtLineExternal(path, lineNum, 0);
         }
 
         // Finds first real JSON start ({" or [{ or [" etc), returns -1 if none

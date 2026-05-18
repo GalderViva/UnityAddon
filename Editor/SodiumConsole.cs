@@ -32,6 +32,7 @@ namespace Sodium.Tools
         {
             public string raw;
             public string display;
+            public string stackTrace;
             public LogType type;
             public DateTime timestamp;
         }
@@ -86,10 +87,11 @@ namespace Sodium.Tools
 
             _entries.Add(new LogEntry
             {
-                raw = message,
-                display = StripTags(message),
-                type = type,
-                timestamp = DateTime.Now
+                raw        = message,
+                display    = StripTags(message),
+                stackTrace = stackTrace,
+                type       = type,
+                timestamp  = DateTime.Now
             });
 
             Repaint();
@@ -175,7 +177,7 @@ namespace Sodium.Tools
 
                 GUI.contentColor = TypeColor(e.type);
                 if (GUILayout.Button("Open", GUILayout.Width(50)))
-                    JsonExpandWindow.Open(e.display);
+                    JsonExpandWindow.Open(e.display, e.stackTrace);
                 GUI.contentColor = Color.white;
 
                 if (_collapse && count > 1)
