@@ -173,7 +173,7 @@ namespace Sodium.Tools
                 if (c != '{' && c != '[') continue;
 
                 int next = i + 1;
-                while (next < s.Length && (s[next] == ' ' || s[next] == '\t' || s[next] == '\n')) next++;
+                while (next < s.Length && (s[next] == ' ' || s[next] == '\t' || s[next] == '\r' || s[next] == '\n')) next++;
                 if (next >= s.Length) continue;
 
                 char after = s[next];
