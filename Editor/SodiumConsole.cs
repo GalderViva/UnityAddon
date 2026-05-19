@@ -42,6 +42,7 @@ namespace Sodium.Tools
 
         readonly List<LogEntry> _entries = new();
         Vector2 _scroll;
+        bool _scrollToBottom;
         string _filter   = "";
         bool _showLog    = true;
         bool _showWarning = true;
@@ -93,6 +94,7 @@ namespace Sodium.Tools
                 type       = type,
                 timestamp  = DateTime.Now
             });
+            _scrollToBottom = true;
 
             Repaint();
         }
@@ -127,8 +129,6 @@ namespace Sodium.Tools
                     normal    = { textColor = Color.white },
                     fontSize  = 9
                 };
-
-            _scroll = EditorGUILayout.BeginScrollView(_scroll);
 
             // Build collapsed view: last entry + count per unique message
             var seen   = new Dictionary<string, int>();
@@ -166,6 +166,11 @@ namespace Sodium.Tools
                     toShow.Add((e, 1));
                 }
             }
+
+            toShow.Reverse();
+
+            if (_scrollToBottom) { _scroll.y = float.MaxValue; _scrollToBottom = false; }
+            _scroll = EditorGUILayout.BeginScrollView(_scroll);
 
             foreach (var (e, count) in toShow)
             {

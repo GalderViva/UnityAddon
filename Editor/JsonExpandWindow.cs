@@ -14,6 +14,7 @@ namespace Sodium.Tools
         Vector2 _scroll;
         GUIStyle _linkStyle;
         GUIStyle _richTextStyle;
+        GUIStyle _invisibleStyle;
 
         static JsonExpandWindow _instance;
 
@@ -57,10 +58,11 @@ namespace Sodium.Tools
             _instance._pretty        = Format(content);
             _instance._prettyColored = FindJsonStart(content) >= 0 ? Colorize(_instance._pretty) : null;
             _instance._stackTrace    = stackTrace;
-            _instance._linkStyle     = null;
-            _instance._richTextStyle = null;
+            _instance._linkStyle      = null;
+            _instance._richTextStyle  = null;
+            _instance._invisibleStyle = null;
             _instance.titleContent = new GUIContent(content.Length > 40 ? content.Substring(0, 40) + "…" : content);
-            _instance.ShowUtility();
+            _instance.Show();
             _instance.Repaint();
         }
 
@@ -90,7 +92,23 @@ namespace Sodium.Tools
             if (_prettyColored != null)
             {
                 float h = Mathf.Max(60f, EditorStyles.textArea.CalcHeight(new GUIContent(plainText), position.width - 24f));
-                GUILayout.Label(_prettyColored, RichTextStyle, GUILayout.Height(h));
+                var rect = EditorGUILayout.GetControlRect(false, h);
+                // Bottom layer: colored text for display
+                GUI.Label(rect, _prettyColored, RichTextStyle);
+                // Top layer: invisible plain text for selection — copies are tag-free
+                if (_invisibleStyle == null)
+                {
+                    _invisibleStyle = new GUIStyle(RichTextStyle) { richText = false };
+                    _invisibleStyle.normal.textColor   = Color.clear;
+                    _invisibleStyle.focused.textColor  = Color.clear;
+                    _invisibleStyle.active.textColor   = Color.clear;
+                    _invisibleStyle.hover.textColor    = Color.clear;
+                    _invisibleStyle.normal.background  = null;
+                    _invisibleStyle.focused.background = null;
+                    _invisibleStyle.active.background  = null;
+                    _invisibleStyle.hover.background   = null;
+                }
+                EditorGUI.SelectableLabel(rect, plainText, _invisibleStyle);
             }
             else if (hasTrace)
             {
