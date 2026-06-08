@@ -50,19 +50,24 @@ namespace Sodium.Tools
         bool _collapse   = true;
         GUIStyle _richLabel;
         GUIStyle _badgeStyle;
+        bool _lastProSkin;
 
         GUIStyle RichLabel
         {
             get
             {
-                if (_richLabel == null)
+                if (_richLabel == null || EditorGUIUtility.isProSkin != _lastProSkin)
                 {
+                    _lastProSkin = EditorGUIUtility.isProSkin;
                     _richLabel = new GUIStyle(EditorStyles.label)
                     {
                         richText = true,
                         wordWrap = false,
                         clipping = TextClipping.Clip
                     };
+                    _richLabel.normal.textColor = EditorGUIUtility.isProSkin
+                        ? new Color(0.82f, 0.82f, 0.82f)
+                        : new Color(0.1f, 0.1f, 0.1f);
                 }
                 return _richLabel;
             }
@@ -103,11 +108,13 @@ namespace Sodium.Tools
         {
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
             {
-                GUILayout.Label($"Logs: {_entries.Count}/{MaxEntries}", GUILayout.Width(130));
+                if (GUILayout.Button("Clear", EditorStyles.toolbarButton, GUILayout.Width(50)))
+                    _entries.Clear();
+                _collapse = GUILayout.Toggle(_collapse, "Collapse", EditorStyles.toolbarButton);
                 GUILayout.Space(4);
                 _filter   = EditorGUILayout.TextField(_filter, EditorStyles.toolbarSearchField, GUILayout.ExpandWidth(true));
                 GUILayout.Space(4);
-                _collapse = GUILayout.Toggle(_collapse, "Collapse", EditorStyles.toolbarButton);
+                GUILayout.Label($"{_entries.Count}/{MaxEntries}", GUILayout.Width(60));
 
                 GUI.contentColor = new Color(0.7f, 0.9f, 1f);
                 _showLog     = GUILayout.Toggle(_showLog,     LogCount(LogType.Log)     + " Log",   EditorStyles.toolbarButton);
@@ -116,8 +123,6 @@ namespace Sodium.Tools
                 GUI.contentColor = new Color(1f, 0.4f, 0.4f);
                 _showError   = GUILayout.Toggle(_showError,   LogCount(LogType.Error)   + " Error", EditorStyles.toolbarButton);
                 GUI.contentColor = Color.white;
-                if (GUILayout.Button("Clear", EditorStyles.toolbarButton, GUILayout.Width(50)))
-                    _entries.Clear();
             }
 
             var hasFilter = !string.IsNullOrEmpty(_filter);
@@ -174,6 +179,7 @@ namespace Sodium.Tools
 
             foreach (var (e, count) in toShow)
             {
+                GUI.contentColor = Color.white;
                 var rowColor = RowColor(e.type);
                 var rect     = EditorGUILayout.BeginHorizontal();
                 if (rowColor.a > 0) EditorGUI.DrawRect(rect, rowColor);
