@@ -187,9 +187,10 @@ namespace Sodium.Tools
                     _textWidth = Mathf.Max(_textWidth, style.CalcSize(Temp(line)).x);
             }
 
+            // No GUILayout.MinHeight here: it would replace the entry's min height and let the scroll view shrink it
             var rect = GUILayoutUtility.GetRect(
-                _textWidth + box.padding.horizontal + 8f, _lines.Length * lh + box.padding.vertical, box,
-                GUILayout.ExpandWidth(true), GUILayout.MinHeight(60f), GUILayout.ExpandHeight(fill));
+                _textWidth + box.padding.horizontal + 8f, Mathf.Max(60f, _lines.Length * lh + box.padding.vertical), box,
+                GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(fill));
             var inner = box.padding.Remove(rect);
 
             int id = GUIUtility.GetControlID(TextControlHash, FocusType.Keyboard, rect);
