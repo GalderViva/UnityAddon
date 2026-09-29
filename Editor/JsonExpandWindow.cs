@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
 using UnityEditor;
@@ -7,13 +8,19 @@ namespace Sodium.Tools
 {
     public class JsonExpandWindow : EditorWindow
     {
+        // IMGUI can't position the cursor/selection highlight past ~16384 chars of a single
+        // control's string (rich-text tags included), so long texts are drawn as several labels.
+        const int MaxChunkChars = 15000;
+
         string _raw;
         string _pretty;
-        string _prettyColored;
+        string[] _chunks;
+        bool _chunksRich;
         string _stackTrace;
         Vector2 _scroll;
         GUIStyle _linkStyle;
         GUIStyle _richTextStyle;
+        GUIStyle _plainTextStyle;
 
         static JsonExpandWindow _instance;
 
@@ -32,18 +39,31 @@ namespace Sodium.Tools
             }
         }
 
-        GUIStyle RichTextStyle
+        GUIStyle RichTextStyle  => _richTextStyle  ?? (_richTextStyle  = ChunkStyle(rich: true));
+        GUIStyle PlainTextStyle => _plainTextStyle ?? (_plainTextStyle = ChunkStyle(rich: false));
+
+        // Chunks sit inside one textArea-styled group, so they carry no background, margin or padding
+        static GUIStyle ChunkStyle(bool rich)
         {
-            get
+            var src   = EditorStyles.textArea;
+            var style = new GUIStyle
             {
-                if (_richTextStyle == null)
-                    _richTextStyle = new GUIStyle(EditorStyles.textArea)
-                    {
-                        richText = true,
-                        wordWrap = false,
-                    };
-                return _richTextStyle;
-            }
+                font      = src.font,
+                fontSize  = src.fontSize,
+                alignment = TextAnchor.UpperLeft,
+                clipping  = src.clipping,
+                richText  = rich,
+                wordWrap  = !rich,
+            };
+            style.normal.textColor    = src.normal.textColor;
+            style.hover.textColor     = src.hover.textColor;
+            style.active.textColor    = src.active.textColor;
+            style.focused.textColor   = src.focused.textColor;
+            style.onNormal.textColor  = src.onNormal.textColor;
+            style.onHover.textColor   = src.onHover.textColor;
+            style.onActive.textColor  = src.onActive.textColor;
+            style.onFocused.textColor = src.onFocused.textColor;
+            return style;
         }
 
         public static void Open(string content, string stackTrace = null)
@@ -53,12 +73,14 @@ namespace Sodium.Tools
                 _instance = CreateInstance<JsonExpandWindow>();
                 _instance.minSize = new Vector2(400, 300);
             }
-            _instance._raw           = content;
-            _instance._pretty        = Format(content);
-            _instance._prettyColored = FindJsonStart(content) >= 0 ? Colorize(_instance._pretty) : null;
-            _instance._stackTrace    = stackTrace;
-            _instance._linkStyle     = null;
-            _instance._richTextStyle = null;
+            _instance._raw            = content;
+            _instance._pretty         = Format(content);
+            _instance._chunksRich     = FindJsonStart(content) >= 0;
+            _instance._chunks         = BuildChunks(_instance._pretty, _instance._chunksRich);
+            _instance._stackTrace     = stackTrace;
+            _instance._linkStyle      = null;
+            _instance._richTextStyle  = null;
+            _instance._plainTextStyle = null;
             _instance.titleContent = new GUIContent(content.Length > 40 ? content.Substring(0, 40) + "…" : content);
             _instance.Show();
             _instance.Repaint();
@@ -84,22 +106,20 @@ namespace Sodium.Tools
 
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
 
-            var hasTrace  = !string.IsNullOrEmpty(_stackTrace);
-            var plainText = _pretty ?? _raw ?? string.Empty;
+            var hasTrace = !string.IsNullOrEmpty(_stackTrace);
+            var style    = _chunksRich ? RichTextStyle : PlainTextStyle;
+            var fill     = !_chunksRich && !hasTrace;
 
-            if (_prettyColored != null)
+            using (new EditorGUILayout.VerticalScope(EditorStyles.textArea, GUILayout.MinHeight(60f), GUILayout.ExpandHeight(fill)))
             {
-                float h = Mathf.Max(60f, EditorStyles.textArea.CalcHeight(new GUIContent(plainText), position.width - 24f));
-                EditorGUILayout.SelectableLabel(_prettyColored, RichTextStyle, GUILayout.Height(h));
-            }
-            else if (hasTrace)
-            {
-                float h = Mathf.Max(60f, EditorStyles.textArea.CalcHeight(new GUIContent(plainText), position.width - 24f));
-                EditorGUILayout.TextArea(plainText, GUILayout.Height(h));
-            }
-            else
-            {
-                EditorGUILayout.TextArea(plainText, GUILayout.ExpandHeight(true));
+                foreach (var chunk in _chunks ?? new[] { _raw ?? string.Empty })
+                {
+                    var content = new GUIContent(chunk);
+                    var rect    = style.wordWrap
+                        ? GUILayoutUtility.GetRect(content, style, GUILayout.ExpandWidth(true))
+                        : GUILayoutUtility.GetRect(0f, style.CalcHeight(content, 0f), style, GUILayout.ExpandWidth(true));
+                    EditorGUI.SelectableLabel(rect, chunk, style);
+                }
             }
 
             if (hasTrace)
@@ -151,9 +171,52 @@ namespace Sodium.Tools
             @"(""(?:[^""\\]|\\.)*"")(\s*:)|(""(?:[^""\\]|\\.)*"")|(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)|(\b(?:true|false|null)\b)",
             RegexOptions.Compiled);
 
+        // Splits text on line boundaries into pieces of at most MaxChunkChars (after colorizing).
+        // Colorizing per line keeps every <color> tag inside its own piece.
+        static string[] BuildChunks(string text, bool colorize)
+        {
+            var chunks = new List<string>();
+            var sb     = new StringBuilder();
+            int lines  = 0;
+
+            foreach (var line in text.Split('\n'))
+            {
+                foreach (var piece in LinePieces(line, colorize))
+                {
+                    if (lines > 0 && sb.Length + 1 + piece.Length > MaxChunkChars)
+                    {
+                        chunks.Add(sb.ToString());
+                        sb.Clear();
+                        lines = 0;
+                    }
+                    if (lines > 0) sb.Append('\n');
+                    sb.Append(piece);
+                    lines++;
+                }
+            }
+            chunks.Add(sb.ToString());
+            return chunks.ToArray();
+        }
+
+        // A single line too long for one chunk is hard-split and left uncolored
+        static IEnumerable<string> LinePieces(string line, bool colorize)
+        {
+            var text = colorize ? Colorize(line) : line;
+            if (text.Length <= MaxChunkChars)
+            {
+                yield return text;
+                yield break;
+            }
+            if (colorize) line = Escape(line);
+            for (int i = 0; i < line.Length; i += MaxChunkChars)
+                yield return line.Substring(i, Mathf.Min(MaxChunkChars, line.Length - i));
+        }
+
+        static string Escape(string s) => s.Replace("<", "&lt;").Replace(">", "&gt;");
+
         static string Colorize(string prettyJson)
         {
-            prettyJson = prettyJson.Replace("<", "&lt;").Replace(">", "&gt;");
+            prettyJson = Escape(prettyJson);
             return ColorizeRx.Replace(prettyJson, m =>
             {
                 if (m.Groups[2].Success) return $"<color=#9CDCFE>{m.Groups[1].Value}</color>{m.Groups[2].Value}";
